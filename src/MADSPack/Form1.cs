@@ -97,6 +97,7 @@ namespace MADSPack
             if (res == System.Windows.Forms.DialogResult.OK)
             {
                 txtFileToOpen.Text = openFileDialog1.FileName;
+                button1_Click(sender, e);
             }
         }
 

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace MADSPack.Compression
 {
-    public class MadsPackReader
+    public class MadsPackReader : IDisposable
     {
         private static string madsPackString = "MADSPACK";
 
@@ -114,6 +114,11 @@ namespace MADSPack.Compression
         public FileType getType()
         {
             return type;
+        }
+
+        public void Dispose()
+        {
+            mStream?.Dispose();
         }
 
         private MadsPackEntry[] items;

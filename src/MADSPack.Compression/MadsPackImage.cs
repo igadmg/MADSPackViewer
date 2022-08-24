@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MathEx;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
@@ -13,13 +14,22 @@ namespace MADSPack.Compression
             HasPalette = false;
         }
 
-        public Bitmap GetImage()
+        public (vec2i size, colorb[] data) GetImage()
         {
             if (!this.HasPalette)
             {
                 PalReader r = new PalReader();
                 this.paletteData = r.GetPalette(pathtoCol + "\\VICEROY.PAL");
             }
+
+            var size = vec2i.xy(width, height);
+            var data = imageData.Select(idx => new colorb(
+                        (byte)(getPaletteData()[idx * 3] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        (byte)(getPaletteData()[(idx * 3) + 1] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        (byte)(getPaletteData()[(idx * 3) + 2] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        idx == TRANSPARENT_COLOUR_INDEX ? 0 : TRANSPARENT_COLOUR_INDEX
+                )).ToArray();
+#if false
             // Create Bitmap
             Bitmap bmp = new Bitmap(this.width, this.height);
             for (int y = 0; y < height; y++)
@@ -54,12 +64,13 @@ namespace MADSPack.Compression
 
 
                     // Set this pixel color in image
-                    bmp.SetPixel(x,y, Color.FromArgb(a, r, g , b));
+                    bmp.SetPixel(x, y, Color.FromArgb(a, r, g, b));
                 }
             }
-            return bmp;
-        }
 
+#endif
+            return(size, data);
+        }
         public void setWidth(short width)
         {
             this.width = width;
@@ -116,5 +127,6 @@ namespace MADSPack.Compression
         private byte[] paletteData;
         private bool HasPalette;
         public string pathtoCol;
+        private const byte TRANSPARENT_COLOUR_INDEX = 255;
     }
 }

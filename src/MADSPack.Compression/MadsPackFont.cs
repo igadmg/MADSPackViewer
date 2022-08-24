@@ -54,14 +54,17 @@ namespace MADSPack.Compression
             fontFile.Read(charData, 0, (int)fontSize);
         }
 
+#if flase
         public Bitmap GenerateFontMap()
         {
             Bitmap bmp = new Bitmap(500, 200);
             string a = "!\"$%()+,-./:;?01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
             writeString(ref bmp, a, new Point(9, 9), 9, 500);
             return bmp;
-        }
+        } 
+#endif
 
+#if false
         public int writeString(ref Bitmap bmp, string msg, Point pt, int spaceWidth, int width)
         {
             PalReader r = new PalReader();
@@ -204,6 +207,7 @@ namespace MADSPack.Compression
             return xEnd;
         }
 
+#endif
         public int getWidth(string msg, int spaceWidth)
         {
             int width = 0;

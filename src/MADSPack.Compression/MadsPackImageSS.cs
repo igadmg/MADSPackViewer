@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Drawing;
 using System.IO;
+using MathEx;
+using System.Linq;
 
 namespace MADSPack.Compression
 {
@@ -171,7 +173,7 @@ namespace MADSPack.Compression
             return dim;
         }
 
-        public Bitmap GetImage(int index)
+        public (vec2i size, colorb[] data) GetImage(int index)
         {
             if (!this.hasPalette())
             {
@@ -179,10 +181,17 @@ namespace MADSPack.Compression
                 this.setPaletteData(r.GetPalette(pathtoCol + "\\VICEROY.PAL"));
             }
 
+            var size = vec2i.xy(widths[index], heights[index]);
             byte[] imageData = uncompressRLEimageData(spriteImageData, startOffsets[index], lengths[index], heights[index], widths[index]);
+            var data = imageData.Select(idx => new colorb(
+                        (byte)(getPaletteData()[idx * 3] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        (byte)(getPaletteData()[(idx * 3) + 1] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        (byte)(getPaletteData()[(idx * 3) + 2] * 4).Clamp(byte.MinValue, byte.MaxValue),
+                        idx == TRANSPARENT_COLOUR_INDEX ? 0 : TRANSPARENT_COLOUR_INDEX
+                )).ToArray();
 
+#if false
             // Create Bitmap
-            Bitmap bmp = new Bitmap(this.widths[index], this.heights[index]);
             for (int y = 0; y < this.heights[index]; y++)
             {
                 for (int x = 0; x < this.widths[index]; x++)
@@ -204,7 +213,8 @@ namespace MADSPack.Compression
                     bmp.SetPixel(x, y, Color.FromArgb(a, r, g, b));
                 }
             }
-            return bmp;
+#endif
+            return (size, data);
         }
 
         private int[] startOffsets;
