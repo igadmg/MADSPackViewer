@@ -1,240 +1,276 @@
-﻿using System;
+﻿using MathEx;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MADSPack.Compression
 {
-    public class MadsPackFont
-    {
-        public int maxHeight;
-        public int maxWidth;
-        public byte[] charWidths;
-        public uint[] charOffsets;
-        public byte[] charData;
-        private byte[] paletteData;
-        public string pathtoCol;
+	public class MadsPackFont
+	{
+		public int maxHeight;
+		public int maxWidth;
+		public byte[] charWidths;
+		public uint[] charOffsets;
+		public byte[] charData;
+		private byte[] paletteData;
+		public string pathtoCol;
 
-        private List<byte> _fontColors = new List<byte>();
+		private List<byte> _fontColors = new List<byte>();
 
-        public MadsPackFont(MadsPackEntry item)
-        {
-            _fontColors.Add(0xFF);
-            _fontColors.Add(0xF);
-            _fontColors.Add(7);
-            _fontColors.Add(8);
+		public MadsPackFont(MadsPackEntry item)
+		{
+			_fontColors.Add(0xFF);
+			_fontColors.Add(0xF);
+			_fontColors.Add(7);
+			_fontColors.Add(8);
 
-            MemoryStream fontFile = new MemoryStream(item.getData());
-            maxHeight = fontFile.ReadByte();
-            maxWidth = fontFile.ReadByte();
+			MemoryStream fontFile = new MemoryStream(item.getData());
+			maxHeight = fontFile.ReadByte();
+			maxWidth = fontFile.ReadByte();
 
-            charWidths = new byte[128];
-            // Char data is shifted by 1
-            charWidths[0] = 0;
-            fontFile.Read(charWidths, 1, 127);
-            fontFile.ReadByte();	// remainder
+			charWidths = new byte[128];
+			// Char data is shifted by 1
+			charWidths[0] = 0;
+			fontFile.Read(charWidths, 1, 127);
+			fontFile.ReadByte();	// remainder
 
-            charOffsets = new uint[128];
+			charOffsets = new uint[128];
 
-            uint startOffs = 2 + 128 + 256;
-            uint fontSize = (uint)(fontFile.Length - startOffs);
+			uint startOffs = 2 + 128 + 256;
+			uint fontSize = (uint)(fontFile.Length - startOffs);
 
-            charOffsets[0] = 0;
-            for (int i = 1; i < 128; i++)
-            {
-                byte[] twobyte = new byte[2];
-                fontFile.Read(twobyte, 0, 2);
-                ushort val = (ushort)BitConverter.ToInt16(twobyte, 0);
-                charOffsets[i] = val - startOffs;
-            }
-            fontFile.ReadByte();	// remainder
+			charOffsets[0] = 0;
+			for (int i = 1; i < 128; i++)
+			{
+				byte[] twobyte = new byte[2];
+				fontFile.Read(twobyte, 0, 2);
+				ushort val = (ushort)BitConverter.ToInt16(twobyte, 0);
+				charOffsets[i] = val - startOffs;
+			}
+			fontFile.ReadByte();	// remainder
 
-            charData = new byte[fontSize];
-            fontFile.Read(charData, 0, (int)fontSize);
-        }
+			charData = new byte[fontSize];
+			fontFile.Read(charData, 0, (int)fontSize);
+		}
 
-#if flase
-        public Bitmap GenerateFontMap()
-        {
-            Bitmap bmp = new Bitmap(500, 200);
-            string a = "!\"$%()+,-./:;?01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-            writeString(ref bmp, a, new Point(9, 9), 9, 500);
-            return bmp;
-        } 
-#endif
+		public string GenerateFntDescription(vec2i size, vec2i charRange, int spaceWidth, string fontName, string pngFilename)
+		{
+			var result = new StringBuilder();
+			result.AppendLine($"info face=\"{fontName}\" size=9 bold=0 italic=0 charset=\"\" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=1");
+			result.AppendLine($"common lineHeight=9 base=15 scaleW=512 scaleH=512 pages=1 packed=0 alphaChnl=0 redChnl=4 greenChnl=4 blueChnl=4");
+			result.AppendLine($"page id=0 file=\"{pngFilename}\"");
+			result.AppendLine($"chars count={charRange.d}");
 
-#if false
-        public int writeString(ref Bitmap bmp, string msg, Point pt, int spaceWidth, int width)
-        {
-            PalReader r = new PalReader();
-            this.paletteData = r.GetPalette(pathtoCol + "\\VICEROY.PAL");
+			int xPos = 0;
+			int yPos = 0;
 
-            int xEnd;
-            if (width > 0)
-                xEnd = Math.Min((int)bmp.Width, pt.X + width);
-            else
-                xEnd = bmp.Width;
+			result.AppendLine($"char id=32 x=0 y=0 width=0 height=0 xoffset=0 yoffset=0 xadvance={spaceWidth} page=0 chnl=15");
+			foreach (var ch in Enumerable.Range(charRange.x, charRange.d))
+			{
+				char theChar = (char)(ch & 0x7F);
+				int charWidth = charWidths[(byte)theChar];
 
-            int x = pt.X;
-            int y = pt.Y;
+				if (xPos + charWidth >= size.x)
+				{
+					yPos += pt.Y;
+					xPos = 0;
+				}
 
-            int skipY = 0;
-            if (y < 0)
-            {
-                skipY = -y;
-                y = 0;
-            }
+				result.AppendLine($"char id={ch} x={xPos} y={yPos} width={charWidth} height={pt.Y} xoffset=0 yoffset=0 xadvance={charWidth} page=0 chnl=15");
 
-            int height = Math.Max(0, maxHeight - skipY);
-            if (height == 0)
-                return x;
+				if (charWidth > 0)
+				{
+					xPos += charWidth;
+				}
+			}
 
-            int bottom = y + height - 1;
-            if (bottom > bmp.Height - 1)
-            {
-                height -= Math.Min(height, bottom - (bmp.Height - 1));
-            }
+			return result.ToString();
+		}
 
-            if (height <= 0)
-                return x;
+		Point pt = new Point(9, 9);
 
-            int xPos = x;
+		public (vec2i size, colorb[] data) GenerateFontMap(vec2i size, vec2i charRange)
+		{
+			var bmp = (size, new colorb[size.product]);
+			string a = new StringBuilder()
+				.Append(Enumerable.Range(charRange.x, charRange.d).Select(c => (char)c).ToArray())
+				.ToString();
+				//Enumerable.Range(charRange.x, charRange.d)
+				//.Cast<char>().Aggregate(string.Empty, (a, c) => a.);
+			writeString(ref bmp, a);
+			return bmp;
+		} 
 
-            char[] text = Encoding.ASCII.GetChars(Encoding.ASCII.GetBytes(msg));
+		public int writeString(ref (vec2i size, colorb[] data) bmp, string msg)
+		{
+			PalReader r = new PalReader();
+			this.paletteData = r.GetPalette(pathtoCol + "\\VICEROY.PAL");
 
-            for (int l = 0; l < text.Length; l++)
-            {
-                char theChar = (char)(text[l] & 0x7F);
-                int charWidth = charWidths[(byte)theChar];
+			int xEnd;
+			if (bmp.size.x > 0)
+				xEnd = Math.Min(bmp.size.x, pt.X + bmp.size.x);
+			else
+				xEnd = bmp.size.x;
 
-                if (charWidth > 0)
-                {
-                    if (xPos + charWidth > xEnd)
-                        return xPos;
+			int x = pt.X;
+			int y = pt.Y;
 
-                    uint initialCharDataByte = charOffsets[(byte)theChar] + 1;
-                    uint endCharDataByte = charOffsets[(byte)theChar + 1] + 1;
+			int skipY = 0;
+			if (y < 0)
+			{
+				skipY = -y;
+				y = 0;
+			}
 
-                    int bpp = getBpp(charWidth);
+			int height = Math.Max(0, maxHeight - skipY);
+			if (height == 0)
+				return x;
 
-                    if (skipY != 0)
-                        initialCharDataByte += (uint)(bpp * skipY);
+			int bottom = y + height - 1;
+			if (bottom > bmp.size.y - 1)
+			{
+				height -= Math.Min(height, bottom - (bmp.size.y - 1));
+			}
 
-                    List<byte> pixellist = new List<byte>();
+			if (height <= 0)
+				return x;
 
-                    for (int i = 0; i < height; i++)
-                    {
-                        for (int j = 0; j < bpp; j++)
-                        {
-                            long dataindex = initialCharDataByte + ((i * bpp) + j);
-                            if (dataindex >= charData.Length) dataindex = charData.Length - 1;
-                            byte val = charData[dataindex];
-                            // Get all 8 bits from this byte
-                            byte bit8 = (byte)((val & 0x80) >> 7);
-                            byte bit7 = (byte)((val & 0x40) >> 6);
-                            byte bit6 = (byte)((val & 0x20) >> 5);
-                            byte bit5 = (byte)((val & 0x10) >> 4);
-                            byte bit4 = (byte)((val & 0x08) >> 3);
-                            byte bit3 = (byte)((val & 0x04) >> 2);
-                            byte bit2 = (byte)((val & 0x02) >> 1);
-                            byte bit1 = (byte)(val & 0x01);
+			int xPos = 0;
+			int yPos = 0;
 
-                            byte nib4 = (byte)((bit8 << 1) + bit7);
-                            byte nib3 = (byte)((bit6 << 1) + bit5);
-                            byte nib2 = (byte)((bit4 << 1) + bit3);
-                            byte nib1 = (byte)((bit2 << 1) + bit1);
+			char[] text = Encoding.ASCII.GetChars(Encoding.ASCII.GetBytes(msg));
 
-                            pixellist.Add(_fontColors[nib4]);
-                            pixellist.Add(_fontColors[nib3]);
-                            pixellist.Add(_fontColors[nib2]);
-                            pixellist.Add(_fontColors[nib1]);
-                        }
-                    }
+			for (int l = 0; l < text.Length; l++)
+			{
+				char theChar = (char)(text[l] & 0x7F);
+				int charWidth = charWidths[(byte)theChar];
 
-                    int[,] pxdata = new int[height, charWidth];
-                    int counter = 0;
-                    for (int i = 0; i < charWidth * height; i++)
-                    {
-                        int h = (i / charWidth);
-                        int w = i % charWidth;
-                        if (counter >= pixellist.Count) pxdata[h, w] = 0;
-                        else pxdata[h, w] = pixellist[counter];
-                        // Skip the quantity of bpp from the end (god knows why)
-                        if (i % charWidth == charWidth - 1)
-                        {
-                            counter += (bpp * 4) - charWidth;
-                        }
-                        counter++;
-                    }
-                    // Draw the char
+				if (xPos + charWidth >= xEnd)
+				{
+					yPos += pt.Y;
+					xPos = 0;
+				}
 
-                    Bitmap b = new Bitmap(charWidth, height);
-                    for (int yy = 0; yy < height; yy++)
-                    {
-                        for (int xx = 0; xx < charWidth; xx++)
-                        {
-                            // Get RGB values for this index
-                            int aa, rr, gg, bb;
+				if (charWidth > 0)
+				{
+					uint initialCharDataByte = charOffsets[(byte)theChar] + 1;
+					uint endCharDataByte = charOffsets[(byte)theChar + 1] + 1;
 
-                            if (pxdata[yy, xx] == 255 || pxdata[yy, xx] == 0)
-                            {
-                                aa = rr = gg = bb = 0;
-                            }
-                            else
-                            {
-                                aa = 255;
-                                rr = paletteData[pxdata[yy, xx] * 3] * 2;
-                                gg = paletteData[(pxdata[yy, xx] * 3) + 1] * 2;
-                                bb = paletteData[(pxdata[yy, xx] * 3) + 1] * 2;
-                            }
+					int bpp = getBpp(charWidth);
 
-                            b.SetPixel(xx, yy, Color.FromArgb(aa, rr, gg, bb));
-                        }
-                    }
+					if (skipY != 0)
+						initialCharDataByte += (uint)(bpp * skipY);
 
-                    Graphics g = Graphics.FromImage(bmp);
-                    g.DrawImage(b, new Point(xPos, pt.Y));
-                    xPos += charWidth;
-                }
-                else
-                {
-                    // Add spacing to next char
-                    xPos += spaceWidth;
-                }
-            }
+					List<byte> pixellist = new List<byte>();
 
-            return xEnd;
-        }
+					for (int i = 0; i < height; i++)
+					{
+						for (int j = 0; j < bpp; j++)
+						{
+							long dataindex = initialCharDataByte + ((i * bpp) + j);
+							if (dataindex >= charData.Length) dataindex = charData.Length - 1;
+							byte val = charData[dataindex];
+							// Get all 8 bits from this byte
+							byte bit8 = (byte)((val & 0x80) >> 7);
+							byte bit7 = (byte)((val & 0x40) >> 6);
+							byte bit6 = (byte)((val & 0x20) >> 5);
+							byte bit5 = (byte)((val & 0x10) >> 4);
+							byte bit4 = (byte)((val & 0x08) >> 3);
+							byte bit3 = (byte)((val & 0x04) >> 2);
+							byte bit2 = (byte)((val & 0x02) >> 1);
+							byte bit1 = (byte)(val & 0x01);
 
-#endif
-        public int getWidth(string msg, int spaceWidth)
-        {
-            int width = 0;
-            char[] text = Encoding.ASCII.GetChars(Encoding.ASCII.GetBytes(msg));
+							byte nib4 = (byte)((bit8 << 1) + bit7);
+							byte nib3 = (byte)((bit6 << 1) + bit5);
+							byte nib2 = (byte)((bit4 << 1) + bit3);
+							byte nib1 = (byte)((bit2 << 1) + bit1);
 
-            if (msg.Length > 0)
-            {
-                for (int i = 0; i < text.Length; i++)
-                {
-                    width += charWidths[text[i] & 0x7F] + spaceWidth;
-                }
-                width -= spaceWidth;
-            }
+							pixellist.Add(_fontColors[nib4]);
+							pixellist.Add(_fontColors[nib3]);
+							pixellist.Add(_fontColors[nib2]);
+							pixellist.Add(_fontColors[nib1]);
+						}
+					}
 
-            return width;
-        }
+					int[,] pxdata = new int[height, charWidth];
+					int counter = 0;
+					for (int i = 0; i < charWidth * height; i++)
+					{
+						int h = (i / charWidth);
+						int w = i % charWidth;
+						if (counter >= pixellist.Count) pxdata[h, w] = 0;
+						else pxdata[h, w] = pixellist[counter];
+						// Skip the quantity of bpp from the end (god knows why)
+						if (i % charWidth == charWidth - 1)
+						{
+							counter += (bpp * 4) - charWidth;
+						}
+						counter++;
+					}
+					// Draw the char
 
-        public int getBpp(int charWidth)
-        {
-            if (charWidth > 12)
-                return 4;
-            else if (charWidth > 8)
-                return 3;
-            else if (charWidth > 4)
-                return 2;
-            else
-                return 1;
-        }
-    }
+					//Bitmap b = new Bitmap(charWidth, height);
+					for (int yy = 0; yy < height; yy++)
+					{
+						for (int xx = 0; xx < charWidth; xx++)
+						{
+							// Get RGB values for this index
+							byte aa, rr, gg, bb;
+
+							if (pxdata[yy, xx] == 255 || pxdata[yy, xx] == 0)
+							{
+								aa = rr = gg = bb = 0;
+							}
+							else
+							{
+								aa = 255;
+								rr = (byte)(paletteData[pxdata[yy, xx] * 3] | 192);
+								gg = (byte)(paletteData[(pxdata[yy, xx] * 3) + 1] | 192);
+								bb = (byte)(paletteData[(pxdata[yy, xx] * 3) + 1] | 192);
+							}
+
+							bmp.data[xx + xPos + (yy + yPos) * bmp.size.x] = new colorb(rr, gg, bb, aa);// b.SetPixel(xx, yy, Color.FromArgb(aa, rr, gg, bb));
+						}
+					}
+
+					xPos += charWidth;
+				}
+			}
+
+			return xEnd;
+		}
+
+
+		public int getWidth(string msg, int spaceWidth)
+		{
+			int width = 0;
+			char[] text = Encoding.ASCII.GetChars(Encoding.ASCII.GetBytes(msg));
+
+			if (msg.Length > 0)
+			{
+				for (int i = 0; i < text.Length; i++)
+				{
+					width += charWidths[text[i] & 0x7F] + spaceWidth;
+				}
+				width -= spaceWidth;
+			}
+
+			return width;
+		}
+
+		public int getBpp(int charWidth)
+		{
+			if (charWidth > 12)
+				return 4;
+			else if (charWidth > 8)
+				return 3;
+			else if (charWidth > 4)
+				return 2;
+			else
+				return 1;
+		}
+	}
 }
