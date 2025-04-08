@@ -77,9 +77,11 @@ namespace MADSPack.Compression
 				{
 					yPos += pt.Y;
 					xPos = 0;
+					Console.Out.WriteLine();
 				}
 
 				result.AppendLine($"char id={ch} x={xPos} y={yPos} width={charWidth} height={pt.Y} xoffset=0 yoffset=0 xadvance={charWidth} page=0 chnl=15");
+				Console.Out.Write(theChar);
 
 				if (charWidth > 0)
 				{
